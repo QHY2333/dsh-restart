@@ -1,0 +1,59 @@
+{
+  "name": "@qhy2333/dsh-restart",
+  "version": "1.0.0",
+  "description": "Restart DeepSeek Harness from the sidebar footer so newly installed plugins load without quitting the app.",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "QHY2333",
+    "url": "https://github.com/QHY2333"
+  },
+  "homepage": "https://github.com/QHY2333/dsh-restart",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QHY2333/dsh-restart.git"
+  },
+  "bugs": {
+    "url": "https://github.com/QHY2333/dsh-restart/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek",
+    "harness",
+    "dsh",
+    "restart",
+    "plugin",
+    "reload"
+  ],
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

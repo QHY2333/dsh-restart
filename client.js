@@ -26,10 +26,10 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.dsh-restart-button{display:flex;align-items:center;gap:8px;box-sizing:border-box;width:100%;height:36px;margin:0;padding:0 12px;border:0;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer}
+.dsh-restart-button{display:flex;align-items:center;gap:8px;box-sizing:border-box;flex:1 1 auto;min-width:0;max-width:100%;height:32px;margin:0;padding:0 12px;border:0;border-radius:10px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer}
 .dsh-restart-button:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 8%,transparent)}
 .dsh-restart-button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
-.dsh-restart-button[data-collapsed=true]{justify-content:center;width:36px;padding:0}
+.dsh-restart-button[data-collapsed=true]{justify-content:center;flex:none;width:36px;height:36px;padding:0}
 .dsh-restart-button[data-collapsed=true] .dsh-restart-label{display:none}
 .dsh-restart-icon{display:block;flex:none;width:16px;height:16px}
 .dsh-restart-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

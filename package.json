@@ -1,6 +1,6 @@
 {
   "name": "@qhy2333/dsh-restart",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Adds a Restart DSH action to the bottom-left account menu so newly installed plugins load without quitting the app.",
   "type": "module",
   "license": "MIT",

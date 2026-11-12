@@ -135,7 +135,12 @@ function launchWindows(exe) {
   const launcherScript = [
     "$ErrorActionPreference = 'SilentlyContinue'",
     `$command = '${wmiCommand.replace(/'/g, "''")}'`,
-    '$result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $command }',
+    // SW_HIDE at process creation: a WMI-created console process would
+    // otherwise flash a console window before -WindowStyle Hidden takes effect.
+    '$startupClass = Get-CimClass -ClassName Win32_ProcessStartup',
+    '$startup = New-CimInstance -CimClass $startupClass -ClientOnly',
+    '$startup.ShowWindow = 0',
+    '$result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $command; ProcessStartupInformation = $startup }',
     `if ($null -eq $result -or $result.ReturnValue -ne 0) { "wmi failed " + $result.ReturnValue | Add-Content '${launcherLog}' } else { "helper pid " + $result.ProcessId | Add-Content '${launcherLog}' }`,
   ].join('; ')
   const encoded = Buffer.from(launcherScript, 'utf16le').toString('base64')

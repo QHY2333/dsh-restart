@@ -40,7 +40,7 @@ git+https://github.com/QHY2333/dsh-restart.git
 
 - 只接受 `POST`，且要求 `x-dsh-restart: 1` 请求头；跨站页面要发这个头会触发 CORS 预检，而该路由不授予预检。
 - 校验 `Origin` / `Sec-Fetch-Site` 与当前 Web 服务同源。
-- 先返回响应，再由一个短命的启动器让 Windows WMI 创建辅助进程。辅助进程在 Electron 的 Job 对象之外、以当前用户会话运行，因此不会被应用退出一起杀掉。它会清除 `ELECTRON_RUN_AS_NODE`（Host 以 Node 模式运行，重开的 Electron 应用不能继承它），结束应用的所有进程，等它们退出后重新启动 `process.execPath`；可执行文件不由浏览器决定。
+- 先返回响应，再由一个短命的启动器让 Windows WMI 创建辅助进程。辅助进程用 `SW_HIDE` 创建（不会闪控制台窗口），并且在 Electron 的 Job 对象之外、以当前用户会话运行，因此不会被应用退出一起杀掉。它会清除 `ELECTRON_RUN_AS_NODE`（Host 以 Node 模式运行，重开的 Electron 应用不能继承它），结束应用的所有进程，等它们退出后重新启动 `process.execPath`；可执行文件不由浏览器决定。
 - 用 WMI 创建进程是为了避开两个真实故障：放在 Electron Job 里的助手会随应用一起被杀；带 `ELECTRON_RUN_AS_NODE=1` 启动的 Electron 会直接以 Node 模式退出，不显示窗口。
 
 客户端半侧没有现成插槽可用：内置账号插件用写死的 `items` 数组构建菜单。本插件监听账号触发按钮（`button[aria-haspopup="menu"][data-signed-out]`）的点击，找到随后出现的菜单浮层，复用最后一行的实时 class，在**退出登录**上方插入一个外观原生、`role="menuitem"` 的行。确认框是一个挂到 `document.body` 的小型 React root。不修改任何内置插件文件。

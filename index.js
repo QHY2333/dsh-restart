@@ -6,10 +6,10 @@
  * gets to pick the executable: it is always `process.execPath` of the running
  * app, and the route only exists while a web server is mounted.
  */
-import { spawn } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { appendFileSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 /** Exact route the browser half calls. */
 const ROUTE = '/_dsh_restart'
@@ -17,6 +17,11 @@ const ROUTE = '/_dsh_restart'
 const TOKEN_HEADER = 'x-dsh-restart'
 
 export function apply(ctx) {
+  try {
+    appendFileSync(join(tmpdir(), 'dsh-restart-host.log'), `loaded ${new Date().toISOString()}\n`)
+  } catch {
+    // Diagnostics must never prevent the restart endpoint from mounting.
+  }
   ctx.inject(['webServer'], (webCtx) => {
     let accepted = false
     const restart = (reason) => {
@@ -91,24 +96,55 @@ function launch() {
 }
 
 /**
- * Write a UTF-16 PowerShell script that stops every process of the app and
- * relaunches the executable. `-EncodedCommand` avoids all command-line
- * quoting problems, including non-ASCII install directories.
+ * The Host process lives inside an Electron job object, so a helper spawned as
+ * its child is terminated when the application exits. Write the real helper to
+ * a file and ask WMI to create it: a WMI-created process belongs to WmiPrvSE,
+ * runs in the user's session, and survives the job's close.
  */
 function launchWindows(exe) {
   const name = basename(exe).replace(/\.exe$/i, '').replace(/'/g, "''")
   const file = exe.replace(/'/g, "''")
-  const script = [
+  const directory = dirname(exe).replace(/'/g, "''")
+  const helperPath = join(tmpdir(), `dsh-restart-helper-${process.pid}.ps1`)
+  const helperLog = join(tmpdir(), 'dsh-restart-helper.log').replace(/'/g, "''")
+  const launcherLog = join(tmpdir(), 'dsh-restart-launcher.log').replace(/'/g, "''")
+  const hostLog = join(tmpdir(), 'dsh-restart-host.log')
+
+  const helperScript = [
     "$ErrorActionPreference = 'SilentlyContinue'",
+    `$log = '${helperLog}'`,
+    '"start " + (Get-Date -Format o) | Add-Content $log',
+    // The Host runs with ELECTRON_RUN_AS_NODE=1. A launched Electron app
+    // inherits it and starts as Node, then exits immediately, so drop the
+    // variables that turn the desktop app into a headless runtime.
+    'Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue',
+    'Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue',
+    'Remove-Item Env:ELECTRON_NO_ATTACH_CONSOLE -ErrorAction SilentlyContinue',
     'Start-Sleep -Milliseconds 1200',
     `Get-Process -Name '${name}' | Stop-Process -Force`,
     '$deadline = (Get-Date).AddSeconds(20)',
     `while ((Get-Date) -lt $deadline -and (Get-Process -Name '${name}' -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 300 }`,
-    `Start-Process -FilePath '${file}'`,
+    `"launching '${file}'" | Add-Content $log`,
+    `$process = Start-Process -FilePath '${file}' -WorkingDirectory '${directory}' -PassThru`,
+    'if ($null -eq $process) { Start-Sleep -Seconds 2; ' + `$process = Start-Process -FilePath '${file}' -WorkingDirectory '${directory}' -PassThru }`,
+    'if ($null -eq $process) { "start failed" | Add-Content $log } else { "started pid " + $process.Id | Add-Content $log }',
+  ].join('\r\n')
+  writeFileSync(helperPath, '\uFEFF' + helperScript, 'utf8')
+
+  const wmiCommand = `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "${helperPath.replace(/"/g, '""')}"`
+  const launcherScript = [
+    "$ErrorActionPreference = 'SilentlyContinue'",
+    `$command = '${wmiCommand.replace(/'/g, "''")}'`,
+    '$result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $command }',
+    `if ($null -eq $result -or $result.ReturnValue -ne 0) { "wmi failed " + $result.ReturnValue | Add-Content '${launcherLog}' } else { "helper pid " + $result.ProcessId | Add-Content '${launcherLog}' }`,
   ].join('; ')
-  const encoded = Buffer.from(script, 'utf16le').toString('base64')
+  const encoded = Buffer.from(launcherScript, 'utf16le').toString('base64')
   try {
-    const child = spawn('powershell.exe', [
+    appendFileSync(hostLog, `launch ${new Date().toISOString()} ${exe} via ${helperPath}\n`)
+    // Run the WMI launcher synchronously so it finishes creating the helper
+    // before the application goes away. The helper itself lives outside the
+    // Electron job and does the actual stop-and-start.
+    execFileSync('powershell.exe', [
       '-NoProfile',
       '-NonInteractive',
       '-WindowStyle',
@@ -116,12 +152,11 @@ function launchWindows(exe) {
       '-EncodedCommand',
       encoded,
     ], {
-      detached: true,
       stdio: 'ignore',
       windowsHide: true,
       cwd: tmpdir(),
+      timeout: 15000,
     })
-    child.unref()
   } catch (error) {
     writeFileSync(join(tmpdir(), 'dsh-restart-failure.log'), String(error?.stack ?? error))
   }

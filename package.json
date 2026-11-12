@@ -1,7 +1,7 @@
 {
   "name": "@qhy2333/dsh-restart",
-  "version": "1.0.0",
-  "description": "Restart DeepSeek Harness from the sidebar footer so newly installed plugins load without quitting the app.",
+  "version": "1.0.1",
+  "description": "Adds a Restart DSH action to the bottom-left account menu so newly installed plugins load without quitting the app.",
   "type": "module",
   "license": "MIT",
   "author": {

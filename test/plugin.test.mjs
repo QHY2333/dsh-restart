@@ -121,7 +121,7 @@ test('accepts a same-origin POST in the desktop app and answers once', async () 
   }
 })
 
-test('Client module registers a localized sidebar footer action', async () => {
+test('Client module injects an account-menu row and opens its dialog', async () => {
   const source = await readFile(CLIENT, 'utf8')
   let definition
   const sandbox = {
@@ -134,61 +134,85 @@ test('Client module registers a localized sidebar footer action', async () => {
   const React = {
     Fragment: Symbol('Fragment'),
     createElement: (type, props, ...children) => ({ type, props, children }),
-    useState: (value) => [value, () => {}],
-    useEffect: () => {},
-    useRef: (value) => ({ current: value }),
   }
   const plugin = definition.factory((id) => {
     if (id === 'react') return React
-    if (id === 'react-dom') return { createPortal: (node) => node }
+    if (id === 'react-dom/client') return { createRoot: () => ({ render() {}, unmount() {} }) }
     throw new Error(`unexpected module ${id}`)
   })
 
-  const injected = []
-  const registered = []
-  const locales = []
-  plugin.apply({
-    effect(register) {
-      return register()
+  const appended = []
+  const listeners = []
+  const element = () => ({
+    className: '',
+    attributes: {},
+    isConnected: false,
+    setAttribute(name, value) {
+      this.attributes[name] = value
     },
-    locale: {
-      register(namespace, dictionaries) {
-        locales.push({ namespace, dictionaries })
-        return () => {}
-      },
+    append() {},
+    remove() {},
+    addEventListener() {},
+    removeEventListener() {},
+    querySelector() {
+      return null
     },
-    slots: {
-      inject(key, callback) {
-        injected.push(key)
-        callback()
-        return () => {}
-      },
-      register(options, component) {
-        registered.push({ options, component })
-        return () => {}
-      },
+    matches() {
+      return false
     },
   })
+  const fakeDocument = {
+    body: { append(node) { appended.push(node) } },
+    createElement: element,
+    addEventListener(type, _listener, capture) {
+      listeners.push({ type, capture })
+    },
+    removeEventListener() {},
+    querySelectorAll() {
+      return []
+    },
+  }
+  class FakeMutationObserver {
+    static instances = []
+    constructor(callback) {
+      this.callback = callback
+      FakeMutationObserver.instances.push(this)
+    }
+    observe() {}
+    disconnect() {}
+  }
 
-  assert.deepEqual(plugin.inject, ['slots', 'locale'])
-  assert.deepEqual(injected, ['sidebar.footer.action'])
-  assert.equal(registered.length, 1)
-  assert.equal(registered[0].options.id, 'dsh-restart')
-  assert.equal(registered[0].options.locale, 'dsh-restart')
+  const locales = []
+  const realDocument = globalThis.document
+  const realObserver = globalThis.MutationObserver
+  globalThis.document = fakeDocument
+  globalThis.MutationObserver = FakeMutationObserver
+  try {
+    plugin.apply({
+      effect(register) {
+        return register()
+      },
+      locale: {
+        register(namespace, dictionaries) {
+          locales.push({ namespace, dictionaries })
+          return () => {}
+        },
+        bind() {
+          return (key) => key
+        },
+      },
+    })
+  } finally {
+    globalThis.document = realDocument
+    globalThis.MutationObserver = realObserver
+  }
+
+  assert.deepEqual(plugin.inject, ['locale'])
   assert.equal(locales[0].namespace, 'dsh-restart')
   assert.ok(locales[0].dictionaries.zh.button.length > 0)
   assert.ok(locales[0].dictionaries.en.button.length > 0)
-
-  const tree = registered[0].component({ wide: true, t: (key) => key })
-  const elements = []
-  const walk = (node) => {
-    if (node === null || node === undefined) return
-    if (Array.isArray(node)) return node.forEach(walk)
-    elements.push(node)
-    node.children?.forEach(walk)
-  }
-  walk(tree)
-  const button = elements.find((element) => element.type === 'button')
-  assert.equal(button.props['aria-label'], 'button')
-  assert.equal(button.props['aria-haspopup'], 'dialog')
+  assert.equal(appended.length, 1)
+  assert.ok(listeners.some((entry) => entry.type === 'pointerdown' && entry.capture === true))
+  assert.ok(listeners.some((entry) => entry.type === 'click' && entry.capture === true))
+  assert.equal(FakeMutationObserver.instances.length, 1)
 })

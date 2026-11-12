@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Restart DSH",
-    "description": "Adds a restart button to the sidebar footer so newly installed plugins load without quitting and reopening the app."
+    "description": "Adds a Restart DSH action to the bottom-left account menu so newly installed plugins load without quitting and reopening the app."
   }
 }
